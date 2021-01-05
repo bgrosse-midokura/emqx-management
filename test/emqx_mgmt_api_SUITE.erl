@@ -53,6 +53,7 @@ groups() ->
        pubsub,
        routes_and_subscriptions,
        stats,
+       log,
        data]}].
 
 init_per_suite(Config) ->
@@ -582,6 +583,36 @@ stats(_) ->
     ?assertEqual(<<"undefined">>, get(<<"message">>, Return)),
     meck:unload(emqx_mgmt).
 
+log(_) ->
+    {ok, Return0} = request_api(get, api_path(["log"]), auth_header_()),
+    ?assertEqual(#{<<"primary_level">> => <<"notice">>}, get(<<"data">>, Return0)),
+
+    {ok, _} = request_api(put, api_path(["log"]), [], auth_header_(), #{<<"primary_level">> => <<"debug">>}),
+    {ok, Return1} = request_api(get, api_path(["log"]), auth_header_()),
+    ?assertEqual(#{<<"primary_level">> => <<"debug">>}, get(<<"data">>, Return1)),
+
+    {ok, Return2} = request_api(get, api_path(["log", "trace"]), auth_header_()),
+    ?assertEqual([], get(<<"data">>, Return2)),
+    
+    Data1 = #{<<"type">> => <<"clientid">>,
+              <<"name">> => <<"test_clientid">>,
+              <<"level">> => <<"debug">>
+             },
+    {ok, _} = request_api(post, api_path(["log", "trace"]), [], auth_header_(), Data1),
+    Data2 = #{<<"type">> => <<"topic">>,
+              <<"name">> => <<"test/topic">>,
+              <<"level">> => <<"debug">>
+             },
+    {ok, _} = request_api(post, api_path(["log", "trace"]), [], auth_header_(), Data2),
+    {ok, Return3} = request_api(get, api_path(["log", "trace"]), auth_header_()),
+    ?assertEqual(2, length(get(<<"data">>, Return3))),
+
+    {ok, _} = request_api(delete, api_path(["log", "trace", "clientid", "test_clientid"]), auth_header_()),
+    {ok, _} = request_api(delete, api_path(["log", "trace", "topic", http_uri:encode("test/topic")]), auth_header_()),
+    {ok, Return4} = request_api(get, api_path(["log", "trace"]), auth_header_()),
+    ?assertEqual([], get(<<"data">>, Return4)),
+    {ok, _} = request_api(put, api_path(["log"]), [], auth_header_(), #{<<"primary_level">> => <<"notic">>}),
+    ok.
 data(_) ->
     {ok, Data} = request_api(post, api_path(["data","export"]), [], auth_header_(), [#{}]),
     #{<<"filename">> := Filename, <<"node">> := Node} = emqx_ct_http:get_http_data(Data),
@@ -590,7 +621,6 @@ data(_) ->
 
     ?assertMatch({ok, _}, request_api(post, api_path(["data","import"]), [], auth_header_(), #{<<"filename">> => Filename, <<"node">> => Node})),
     ?assertMatch({ok, _}, request_api(post, api_path(["data","import"]), [], auth_header_(), #{<<"filename">> => Filename})),
-
     ok.
 
 request_api(Method, Url, Auth) ->
