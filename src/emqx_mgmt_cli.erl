@@ -23,7 +23,7 @@
 
 -define(PRINT_CMD(Cmd, Descr), io:format("~-48s# ~s~n", [Cmd, Descr])).
 
--import(lists, [foreach/2]).
+-import(lists, [foreach/2,foldl/3]).
 
 -export([load/0]).
 
@@ -575,7 +575,13 @@ listeners(["restart", Proto, ListenOn]) ->
         [Port]     -> list_to_integer(Port);
         [IP, Port] -> {IP, list_to_integer(Port)}
     end,
-    case emqx_listeners:restart_listener({list_to_atom(Proto), ListenOn1, []}) of
+    Listener = foldl(fun({LisProtocol, LisListenOn, LisOpts}, Acc) ->
+        if
+        LisProtocol == Proto andalso LisListenOn == ListenOn1 -> {LisProtocol, LisListenOn, LisOpts};
+        true -> Acc
+        end
+    end, {}, emqx:get_env(listeners, [])),
+    case emqx_listeners:restart_listener(Listener) of
         ok ->
             emqx_ctl:print("Restarted ~s listener on ~s successfully.~n", [Proto, ListenOn]);
         {error, Error} ->
