@@ -23,7 +23,7 @@
 
 -define(PRINT_CMD(Cmd, Descr), io:format("~-48s# ~s~n", [Cmd, Descr])).
 
--import(lists, [foreach/2]).
+-import(lists, [foreach/2,foldl/3]).
 
 -export([load/0]).
 
@@ -563,11 +563,16 @@ listeners(["start", Proto, ListenOn]) ->
         [Port]     -> list_to_integer(Port);
         [IP, Port] -> {IP, list_to_integer(Port)}
     end,
-    case emqx_listeners:start_listener({list_to_atom(Proto), ListenOn1, []}) of
-        ok ->
-            emqx_ctl:print("Start ~s listener on ~s successfully.~n", [Proto, ListenOn]);
-        {error, Error} ->
-            emqx_ctl:print("Failed to start ~s listener on ~s, error:~p~n", [Proto, ListenOn, Error])
+    case find_listener_opts(Proto, ListenOn1) of
+        {ok, Listener} ->
+            case emqx_listeners:start_listener(Listener) of
+                ok ->
+                    emqx_ctl:print("Start ~s listener on ~s successfully.~n", [Proto, ListenOn]);
+                {error, Error} ->
+                    emqx_ctl:print("Failed to start ~s listener on ~s, error:~p~n", [Proto, ListenOn, Error])
+            end;
+        {error, FindError} ->
+            emqx_ctl:print("Failed to find ~s listener on ~s, error:~p~n", [Proto, ListenOn, FindError])
     end;
 
 listeners(["restart", Proto, ListenOn]) ->
@@ -575,11 +580,16 @@ listeners(["restart", Proto, ListenOn]) ->
         [Port]     -> list_to_integer(Port);
         [IP, Port] -> {IP, list_to_integer(Port)}
     end,
-    case emqx_listeners:restart_listener({list_to_atom(Proto), ListenOn1, []}) of
-        ok ->
-            emqx_ctl:print("Restarted ~s listener on ~s successfully.~n", [Proto, ListenOn]);
-        {error, Error} ->
-            emqx_ctl:print("Failed to restart ~s listener on ~s, error:~p~n", [Proto, ListenOn, Error])
+    case find_listener_opts(Proto, ListenOn1) of
+        {ok, Listener} ->
+            case emqx_listeners:restart_listener(Listener) of
+                ok ->
+                    emqx_ctl:print("Restarted ~s listener on ~s successfully.~n", [Proto, ListenOn]);
+                {error, Error} ->
+                    emqx_ctl:print("Failed to restart ~s listener on ~s, error:~p~n", [Proto, ListenOn, Error])
+            end;
+        {error, FindError} ->
+            emqx_ctl:print("Failed to find ~s listener on ~s, error:~p~n", [Proto, ListenOn, FindError])
     end;
 
 listeners(_) ->
@@ -587,6 +597,17 @@ listeners(_) ->
                     {"listeners stop    <Proto> <Port>", "Stop a listener"},
                     {"listeners start   <Proto> <Port>", "Start a listener"},
                     {"listeners restart <Proto> <Port>", "Restart a listener"}]).
+
+find_listener_opts(Proto, ListenOn) ->
+    ProtoAtom = list_to_atom(Proto),
+    foldl(fun({LisProtocol, LisListenOn, LisOpts}, Acc) ->
+        if
+        LisProtocol == ProtoAtom andalso LisListenOn == ListenOn ->
+            {ok, {LisProtocol, LisListenOn, LisOpts}};
+        true ->
+            Acc
+        end
+    end, {error, "Listener/options not found"}, emqx:get_env(listeners, [])).
 
 %%--------------------------------------------------------------------
 %% @doc data Command
