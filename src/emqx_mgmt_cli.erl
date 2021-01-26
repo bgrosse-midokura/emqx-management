@@ -572,13 +572,15 @@ listeners(["start", Proto, ListenOn]) ->
 
 listeners(["restart", Proto, ListenOn]) ->
     ListenOn1 = case string:tokens(ListenOn, ":") of
-        [Port]     -> list_to_integer(Port);
+        [Port]     -> {{0,0,0,0}, list_to_integer(Port)};
         [IP, Port] -> {IP, list_to_integer(Port)}
     end,
     Listener = foldl(fun({LisProtocol, LisListenOn, LisOpts}, Acc) ->
         if
-        LisProtocol == Proto andalso LisListenOn == ListenOn1 -> {LisProtocol, LisListenOn, LisOpts};
-        true -> Acc
+        (LisProtocol == list_to_atom(Proto)) andalso LisListenOn == ListenOn1 ->
+            {LisProtocol, LisListenOn, LisOpts};
+        true ->
+            Acc
         end
     end, {}, emqx:get_env(listeners, [])),
     case emqx_listeners:restart_listener(Listener) of
