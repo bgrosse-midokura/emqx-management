@@ -577,7 +577,7 @@ listeners(["start", Proto, ListenOn]) ->
 
 listeners(["restart", Proto, ListenOn]) ->
     ListenOn1 = case string:tokens(ListenOn, ":") of
-        [Port]     -> {{0,0,0,0}, list_to_integer(Port)};
+        [Port]     -> list_to_integer(Port);
         [IP, Port] -> {IP, list_to_integer(Port)}
     end,
     case find_listener_opts(Proto, ListenOn1) of
