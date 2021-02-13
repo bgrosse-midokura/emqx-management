@@ -530,26 +530,6 @@ listeners([]) ->
                         end, Info)
             end, ranch:info());
 
-listeners(["stop",  Name = "http" ++ _N, ListenOn]) ->
-    case minirest:stop_http(list_to_atom(Name)) of
-        ok ->
-            emqx_ctl:print("Stop ~s listener on ~s successfully.~n", [Name, ListenOn]);
-        {error, Error} ->
-            emqx_ctl:print("Failed to stop ~s listener on ~s, error:~p~n", [Name, ListenOn, Error])
-    end;
-
-listeners(["stop", Proto, ListenOn]) ->
-    ListenOn1 = case string:tokens(ListenOn, ":") of
-        [Port]     -> list_to_integer(Port);
-        [IP, Port] -> {IP, list_to_integer(Port)}
-    end,
-    case emqx_listeners:stop_listener({list_to_atom(Proto), ListenOn1, []}) of
-        ok ->
-            emqx_ctl:print("Stop ~s listener on ~s successfully.~n", [Proto, ListenOn]);
-        {error, Error} ->
-            emqx_ctl:print("Failed to stop ~s listener on ~s, error:~p~n", [Proto, ListenOn, Error])
-    end;
-
 listeners(["restart", Proto, ListenOn]) ->
     case emqx_mgmt:restart_listener(Proto, ListenOn) of
         ok ->
@@ -560,8 +540,6 @@ listeners(["restart", Proto, ListenOn]) ->
 
 listeners(_) ->
     emqx_ctl:usage([{"listeners",                        "List listeners"},
-                    {"listeners stop    <Proto> <Port>", "Stop a listener"},
-                    {"listeners start   <Proto> <Port>", "Start a listener"},
                     {"listeners restart <Proto> <Port>", "Restart a listener"}]).
 
 %%--------------------------------------------------------------------
